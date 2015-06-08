@@ -184,13 +184,13 @@ implementation {
 	}
 	
 	void sendMessage(){
-		CTPMsg* ctpmsg = (CTPMsg*)call Send.getPayload(&packet, sizeof(CTPMsg));
+		NeiMsg* ctpmsg = (NeiMsg*)call Send.getPayload(&packet, sizeof(NeiMsg));
 		convertNX();	
 		ctpmsg -> neighbourNum = neighbourNumIndex;
 		ctpmsg -> nodeid = (nx_uint8_t)TOS_NODE_ID;
 		ctpmsg -> power = battery;
 		memcpy(ctpmsg -> neighbourSet, nx_neighbourSet, sizeof(nx_neighbourSet));
-		call Send.send(&packet, sizeof(CTPMsg));
+		call Send.send(&packet, sizeof(NeiMsg));
 		busy = TRUE;	
 	}
 
@@ -229,8 +229,8 @@ implementation {
 
 	event message_t * CTPReceive.receive(message_t *msg, void *payload, uint8_t len){
 		int i;
-		if(len == sizeof(CTPMsg)) {
-			CTPMsg * btrpkt = (CTPMsg * ) payload;
+		if(len == sizeof(NeiMsg)) {
+			NeiMsg * btrpkt = (NeiMsg * ) payload;
 		}
 		return msg;
 	}
