@@ -24,7 +24,7 @@
 #include "EcolStationNeighbour.h"
 
 module EcolStationNeighbourP {
-	provides interface EcolStationNeighbour;
+	provides interface EcolStationNeighbour;  
 	
 	uses interface Timer<TMilli> as Timer0;
 	uses interface Timer<TMilli> as Timer1;

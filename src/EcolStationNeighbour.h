@@ -28,7 +28,7 @@ typedef nx_struct nx_NeighbourUnit {
 	nx_uint8_t linkquality;	//原始float值扩大100倍
 } nx_NeighbourUnit;
 
-typedef nx_struct NeiMsg{
+typedef nx_struct NeiMsg{   
 	//send的payload最大为20字节，此处尽量减少数据空间
 	nx_int8_t neighbourNum;
 	nx_int8_t nodeid;
