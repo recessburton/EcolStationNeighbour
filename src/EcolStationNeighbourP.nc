@@ -4,7 +4,7 @@
  Created on  2015-06-04 15:10
  
  @author: ytc recessburton@gmail.com
- @version: 1.0
+ @version: 0.4
  
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -49,7 +49,6 @@ implementation {
 	volatile bool busy = FALSE;
 	uint8_t helloMsgCount = 0;
 	uint8_t neighbourNumIndex = 0;//邻居数目，>从0开始!<<<<<<
-	int tempIndex;
 	uint16_t battery = 0;
 
 	event void AMControl.startDone(error_t err) {
@@ -79,16 +78,23 @@ implementation {
 	}
 
 	event void Timer0.fired() {
-		if (helloMsgCount > 10 && helloMsgCount < 15){
+		if (helloMsgCount <= 10)		//空转10次等待
+			helloMsgCount ++;
+		else if (helloMsgCount > 10 && helloMsgCount < 20){	//发送10次链路探测包
 			helloMsgSend();
 			helloMsgCount ++;
-		}
-		else if(helloMsgCount <= 10)
+		}else if(helloMsgCount >= 20 && helloMsgCount < 120){
 			helloMsgCount ++;
-		else{
-			call Timer0.stop();
-			if(TOS_NODE_ID != 1)	//非基站的其它节点启动周期CTP邻居节点集的定时器
+			if(TOS_NODE_ID != 1)				    //非基站的其它节点启动周期CTP邻居节点集的定时器
 				call Timer1.startPeriodic(NEIGHBOUR_PERIOD_MILLI);
+		}else{													//大于120次，即30s，则重新开始邻居关系评估
+			call Timer1.stop();						//暂时停止邻居关系消息的发送
+			helloMsgCount = 0;
+			//内存中的邻居关系数据清空
+			busy = TRUE;									//暂时设置无线为不可用，不接收过时的邻居关系回包
+			neighbourNumIndex = 0;
+			memset(neighbourSet,10*MAX_NEIGHBOUR_NUM,0);
+			busy = FALSE;
 		}
 	}
 
@@ -196,7 +202,7 @@ implementation {
 
 	event message_t * Receive.receive(message_t * msg, void * payload,uint8_t len) {
 		int i;
-		if(len == sizeof(NeighbourMsg)) {
+		if(len == sizeof(NeighbourMsg) && busy == FALSE) {
 			NeighbourMsg * btrpkt = (NeighbourMsg * ) payload;
 			if(btrpkt->dstid == 0xFF){	//接到其它节点发的hello包，回ack包
 				ackMsgSend(btrpkt->sourceid);
