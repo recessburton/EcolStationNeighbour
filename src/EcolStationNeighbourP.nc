@@ -172,10 +172,15 @@ implementation {
 	
 	void estLinkQuality(uint16_t sourceid){
 		int i = 0;
+		int totalhello = 20;
+		float linkq;
 		for( ; i <= neighbourNumIndex; i++ ){
 			if(neighbourSet[i].nodeid == sourceid){
 				neighbourSet[i].recvCount ++;
-				neighbourSet[i].linkquality = (float) (neighbourSet[i].recvCount / ((helloMsgCount -10)* 1.0));
+				if(helloMsgCount < 20)
+					totalhello = helloMsgCount;
+				linkq = (float) (neighbourSet[i].recvCount / ((totalhello -10)* 1.0));
+				neighbourSet[i].linkquality = (linkq>100) ? 100 : linkq;
 			}else{
 				continue;
 			}
