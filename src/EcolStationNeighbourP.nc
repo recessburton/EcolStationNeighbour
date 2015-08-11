@@ -156,7 +156,7 @@ implementation {
 			while(neighbourSet[i].linkquality <= temp.linkquality && i < j)
 				i ++;	
 				
-			if(j < j) {
+			if( i < j ) {
 				memcpy(&t, &neighbourSet[i], sizeof(NeighbourUnit));
 				memcpy(&neighbourSet[i], &neighbourSet[j],  sizeof(NeighbourUnit));
 				memcpy(&neighbourSet[j], &t,   sizeof(NeighbourUnit));	
