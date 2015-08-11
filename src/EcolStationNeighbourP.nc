@@ -203,7 +203,6 @@ implementation {
 		convertNX();	
 		ctpmsg -> neighbourNum = neighbourNumIndex;
 		ctpmsg -> nodeid = (nx_uint8_t)TOS_NODE_ID;
-		call TelosbBuiltinSensors.readAllSensors();
 		ctpmsg -> temp   = temper;
 		ctpmsg -> humid = humid;
 		ctpmsg -> light     = light;
@@ -256,7 +255,7 @@ implementation {
 
 	event void Timer1.fired(){
 		if(!busy)
-			sendMessage();	//CTP发送给基站
+			call TelosbBuiltinSensors.readAllSensors();
 	}
 	
 	event void TelosbBuiltinSensors.readBatteryDone(error_t err, uint16_t data){
@@ -280,6 +279,7 @@ implementation {
 				humid = humi;
 				light = ligh;
 				battery = batt;
+				sendMessage();	//CTP发送给基站
 	}
 
 	command error_t EcolStationNeighbour.startNei(){
