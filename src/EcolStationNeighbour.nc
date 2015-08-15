@@ -22,4 +22,5 @@
 
 interface EcolStationNeighbour{
 	command error_t startNei();
+	command error_t restart();
 }

@@ -4,7 +4,7 @@
  Created on  2015-06-04 15:10
  
  @author: ytc recessburton@gmail.com
- @version: 1.0
+ @version: 0.8
  
  This program is free software: you can redistribute it and/or modify
  it under the terms of the GNU General Public License as published by
@@ -33,7 +33,6 @@ implementation {
 	components EcolStationNeighbourP as App;
 	components new TimerMilliC() as Timer0;
 	components new TimerMilliC() as Timer1;
-	components ActiveMessageC;
 	components new AMSenderC(ORWNEIGHBOUR);
 	components new AMReceiverC(ORWNEIGHBOUR);
 	components CollectionC as Collector;
@@ -47,7 +46,6 @@ implementation {
 	App.Timer1 -> Timer1;
 	App.Packet -> AMSenderC;
 	App.AMPacket -> AMSenderC;
-	App.AMControl -> ActiveMessageC;
 	App.AMSend -> AMSenderC;
 	App.Receive -> AMReceiverC;
 	
