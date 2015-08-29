@@ -38,6 +38,7 @@ module EcolStationNeighbourP {
 	uses interface Send;
 	uses interface Receive as CTPReceive;
 	uses interface TelosbBuiltinSensors;
+	uses interface CC2420Packet;
 	
 }
 
@@ -104,19 +105,31 @@ implementation {
 		sortNodes(i+1, right);
 	}
 	
-	void convertNX(){
+	void convertNX(){			//转换网络字节序; 邻居节点集去重
 		int i;
+		uint8_t votes[50]={0};
 		memset(nx_neighbourSet, MAX_NEIGHBOUR_NUM,0);
 		atomic{
 			for(i = 0; i<(MAX_NEIGHBOUR_NUM < neighbourNumIndex ? MAX_NEIGHBOUR_NUM : neighbourNumIndex); i++ ){
 				//将邻居集转换为网络类型
 				nx_neighbourSet[i].nodeid = (nx_uint8_t)neighbourSet[i].nodeid;
 				nx_neighbourSet[i].linkquality = (nx_uint8_t)(neighbourSet[i].linkquality*100);
+				//每个节点号投票，多于2个的重复的节点链路质量置0（被置0的总是重复的节点号中链路质量较差的），重新排序
+				votes[neighbourSet[i].nodeid] += 1;
+				if(votes[neighbourSet[i].nodeid] >= 2){
+					neighbourSet[i].linkquality = 0;
+					sortNodes(0, neighbourNumIndex);
+					--neighbourNumIndex;
+					convertNX();
+					return;
+				}
+				nx_neighbourSet[i].rssi = (nx_int8_t)neighbourSet[i].rssi;
+				nx_neighbourSet[i].lqi = (nx_uint8_t)neighbourSet[i].lqi;
 			}
 		}
 	}
 	
-	task 	void estLinkQ(){					// >任务，计算邻居集中每个节点的链路质量，调用后立即返回<
+	task void estLinkQ(){					// >任务，计算邻居集中每个节点的链路质量，调用后立即返回<
 		int i;
 		float linkq;
 		atomic{
@@ -132,22 +145,22 @@ implementation {
 	}
 	
 	event void Timer0.fired() {	//>>>>>>>>>>>>>特别注意Timer0和Timer1两个定时器的启停和配合！！！
-		if (helloMsgCount < 10){		//空转10次等待
+		if (helloMsgCount < 10){		   //空转10次等待
 			helloMsgCount ++;
-		}else if(helloMsgCount == 10){	//空转结束，准备发送preamble前导等待节点醒来
+		}else if(helloMsgCount == 10){	   //空转结束，准备发送preamble前导等待节点醒来
 			helloMsgCount ++;
 			preambleTimer = TRUE;
 			call Timer1.startPeriodic(PREAMBLE_PERIOD_MILLI);
 		}else if(helloMsgCount < 12){     //空转2s，等待链路评估结束
 			helloMsgCount ++;
-		}else if(helloMsgCount == 12){	//结束链路评估，计算各个邻居的链路质量，对结果进行排序，网络字节序转换，准备邻居关系报告
+		}else if(helloMsgCount == 12){	   //结束链路评估，计算各个邻居的链路质量，对结果进行排序，网络字节序转换，准备邻居关系报告
 			helloMsgCount ++;
 			post estLinkQ();
 			call Timer1.startPeriodic(NEIGHBOUR_PERIOD_MILLI);	//准备就绪，开始持续的邻居关系报告
 		}else if(helloMsgCount < 120){
 			helloMsgCount ++;
-		}else{													//大于120次，即120s，则重新开始邻居关系评估
-			call Timer1.stop();						//暂时停止邻居关系消息的发送
+		}else{							   //大于120次，即120s，则重新开始邻居关系评估
+			call Timer1.stop();			   //暂时停止邻居关系消息的发送
 			helloMsgCount = 0;
 			//内存中的邻居关系数据清空
 			neighbourNumIndex = 0;
@@ -180,18 +193,25 @@ implementation {
 				continue;
 		}
 		//如果执行到此处，表明该节点不在邻居集合中
+		++neighbourNumIndex;
 		neighbourSet[neighbourNumIndex].nodeid = sourceid;
 		neighbourSet[neighbourNumIndex].linkquality = 0.0f;
 		neighbourSet[neighbourNumIndex].recvCount = 0;
-		return ++neighbourNumIndex;
+		neighbourSet[neighbourNumIndex].rssi = 0;
+    	neighbourSet[neighbourNumIndex].lqi = 0;
+		return neighbourNumIndex;
 	}
 	
-	void updateLinkQCount(int nodeindex){
+	void updateLinkQCount(int nodeindex, message_t * msg){
 		float linkq;
-		int totalhello = helloMsgCount<20?helloMsgCount:20;
+		int temp1=0,temp2=0;
 		if (nodeindex < 0)
 			return;
+		temp1 = neighbourSet[nodeindex].rssi * neighbourSet[nodeindex].recvCount + RSSI_OFFSET + call CC2420Packet.getRssi(msg);
+		temp2 = neighbourSet[nodeindex].lqi * neighbourSet[nodeindex].recvCount + call CC2420Packet.getLqi(msg);
 		neighbourSet[nodeindex].recvCount ++;	
+		neighbourSet[nodeindex].rssi = (int8_t)(temp1 / (int)neighbourSet[nodeindex].recvCount);
+    	neighbourSet[nodeindex].lqi  = (uint8_t)(temp2 / (int)neighbourSet[nodeindex].recvCount);
 	}
 
 	task void sendPreamble(){
@@ -208,9 +228,9 @@ implementation {
 		ctpmsg -> neighbourNum = (nx_int8_t)(MAX_NEIGHBOUR_NUM < neighbourNumIndex ? MAX_NEIGHBOUR_NUM : neighbourNumIndex);
 		ctpmsg -> nodeid = (nx_uint8_t)TOS_NODE_ID;
 		ctpmsg -> temp   = temper;
-		ctpmsg -> humid = humid;
-		ctpmsg -> light     = light;
-		ctpmsg -> power = battery;
+		ctpmsg -> humid  = humid;
+		ctpmsg -> light  = light;
+		ctpmsg -> power  = battery;
 		memcpy(ctpmsg -> neighbourSet, nx_neighbourSet, sizeof(nx_neighbourSet));
 		call Send.send(&packet, sizeof(NeiMsg));
 	}
@@ -224,7 +244,7 @@ implementation {
 			}
 			else if ( (btrpkt->dstid - TOS_NODE_ID) == 0) {	//接到的是自己的回包，计算链路质量，判断邻居资格
 				atomic{
-					updateLinkQCount(addSet(btrpkt->sourceid));
+					updateLinkQCount(addSet(btrpkt->sourceid),msg);
 				}
 			}else{	//其它包，丢弃
 			}
@@ -305,7 +325,7 @@ implementation {
 	command error_t EcolStationNeighbour.startNei(){		//本接口入口点
 		call RadioControl.start();
 		call Timer0.startPeriodic(TIMER_PERIOD_MILLI);
-		call TelosbBuiltinSensors.readAllSensors();					//AD预读，确保以后第一次读取的数值正确
+		call TelosbBuiltinSensors.readAllSensors();			//AD预读，确保以后第一次读取的数值正确
 		return TRUE;
 	}
 	
